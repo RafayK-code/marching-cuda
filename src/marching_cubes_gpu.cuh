@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <vector>
 
-std::vector<float> MarchingCubesGPU(const float* field, int gridSize, float min, float max, float isovalue);
+std::vector<float> MarchingCubesGPU(const float* field, const MarchingCubesConfig& config);

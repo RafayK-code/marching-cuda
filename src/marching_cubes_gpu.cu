@@ -20,29 +20,29 @@ static void InitGPUSymbols()
     }
 }
 
-__global__ void CountVerticesKernel(const float* field, int* vertexCounts, int gridSize, float isovalue)
+__global__ void CountVerticesKernel(const float* field, int* vertexCounts, int gridX, int gridY, int gridZ, float isovalue)
 {
     int cubeIdx = blockIdx.x * blockDim.x + threadIdx.x;
-    int numCubes = (gridSize - 1) * (gridSize - 1) * (gridSize - 1);
+    int numCubes = (gridX - 1) * (gridY - 1) * (gridZ - 1);
 
     if (cubeIdx >= numCubes)
         return;
 
-    int cubesPerSlice = (gridSize - 1) * (gridSize - 1);
+    int cubesPerSlice = (gridX - 1) * (gridY - 1);
     int z = cubeIdx / cubesPerSlice;
     int remainder = cubeIdx % cubesPerSlice;
-    int y = remainder / (gridSize - 1);
-    int x = remainder % (gridSize - 1);
+    int y = remainder / (gridX - 1);
+    int x = remainder % (gridX - 1);
 
     float vertValues[8];
-    vertValues[0] = field[x + y * gridSize + z * gridSize * gridSize];
-    vertValues[1] = field[(x + 1) + y * gridSize + z * gridSize * gridSize];
-    vertValues[2] = field[(x + 1) + y * gridSize + (z + 1) * gridSize * gridSize];
-    vertValues[3] = field[x + y * gridSize + (z + 1) * gridSize * gridSize];
-    vertValues[4] = field[x + (y + 1) * gridSize + z * gridSize * gridSize];
-    vertValues[5] = field[(x + 1) + (y + 1) * gridSize + z * gridSize * gridSize];
-    vertValues[6] = field[(x + 1) + (y + 1) * gridSize + (z + 1) * gridSize * gridSize];
-    vertValues[7] = field[x + (y + 1) * gridSize + (z + 1) * gridSize * gridSize];
+    vertValues[0] = field[x + y * gridX + z * gridX * gridY];
+    vertValues[1] = field[(x + 1) + y * gridX + z * gridX * gridY];
+    vertValues[2] = field[(x + 1) + y * gridX + (z + 1) * gridX * gridY];
+    vertValues[3] = field[x + y * gridX + (z + 1) * gridX * gridY];
+    vertValues[4] = field[x + (y + 1) * gridX + z * gridX * gridY];
+    vertValues[5] = field[(x + 1) + (y + 1) * gridX + z * gridX * gridY];
+    vertValues[6] = field[(x + 1) + (y + 1) * gridX + (z + 1) * gridX * gridY];
+    vertValues[7] = field[x + (y + 1) * gridX + (z + 1) * gridX * gridY];
 
     int cubeCase = 0;
     for (int i = 0; i < 8; i++)
@@ -58,48 +58,51 @@ __global__ void CountVerticesKernel(const float* field, int* vertexCounts, int g
     {
         if (edges[i] == -1)
             break;
-
         count++;
     }
 
     vertexCounts[cubeIdx] = count;
 }
 
-__global__ void MarchingCubesKernel(const float* field, const int* vertexOffsets, float* output, int gridSize, float min, float max, float isovalue)
+__global__ void MarchingCubesKernel(const float* field, const int* vertexOffsets, float* output, MarchingCubesConfig config)
 {
     int cubeIdx = blockIdx.x * blockDim.x + threadIdx.x;
-    int numCubes = (gridSize - 1) * (gridSize - 1) * (gridSize - 1);
+    int numCubes = (config.gridX - 1) * (config.gridY - 1) * (config.gridZ - 1);
 
     if (cubeIdx >= numCubes)
         return;
 
-    int cubesPerSlice = (gridSize - 1) * (gridSize - 1);
+    // Convert linear index to 3D using gridX, gridY, gridZ
+    int cubesPerSlice = (config.gridX - 1) * (config.gridY - 1);
     int z = cubeIdx / cubesPerSlice;
     int remainder = cubeIdx % cubesPerSlice;
-    int y = remainder / (gridSize - 1);
-    int x = remainder % (gridSize - 1);
+    int y = remainder / (config.gridX - 1);
+    int x = remainder % (config.gridX - 1);
 
+    // Field indexing using gridX and gridY
     float vertValues[8];
-    vertValues[0] = field[x + y * gridSize + z * gridSize * gridSize];
-    vertValues[1] = field[(x + 1) + y * gridSize + z * gridSize * gridSize];
-    vertValues[2] = field[(x + 1) + y * gridSize + (z + 1) * gridSize * gridSize];
-    vertValues[3] = field[x + y * gridSize + (z + 1) * gridSize * gridSize];
-    vertValues[4] = field[x + (y + 1) * gridSize + z * gridSize * gridSize];
-    vertValues[5] = field[(x + 1) + (y + 1) * gridSize + z * gridSize * gridSize];
-    vertValues[6] = field[(x + 1) + (y + 1) * gridSize + (z + 1) * gridSize * gridSize];
-    vertValues[7] = field[x + (y + 1) * gridSize + (z + 1) * gridSize * gridSize];
+    vertValues[0] = field[x + y * config.gridX + z * config.gridX * config.gridY];
+    vertValues[1] = field[(x + 1) + y * config.gridX + z * config.gridX * config.gridY];
+    vertValues[2] = field[(x + 1) + y * config.gridX + (z + 1) * config.gridX * config.gridY];
+    vertValues[3] = field[x + y * config.gridX + (z + 1) * config.gridX * config.gridY];
+    vertValues[4] = field[x + (y + 1) * config.gridX + z * config.gridX * config.gridY];
+    vertValues[5] = field[(x + 1) + (y + 1) * config.gridX + z * config.gridX * config.gridY];
+    vertValues[6] = field[(x + 1) + (y + 1) * config.gridX + (z + 1) * config.gridX * config.gridY];
+    vertValues[7] = field[x + (y + 1) * config.gridX + (z + 1) * config.gridX * config.gridY];
 
     int cubeCase = 0;
     for (int i = 0; i < 8; i++)
     {
-        if (vertValues[i] < isovalue)
+        if (vertValues[i] < config.isovalue)
             cubeCase |= (1 << i);
     }
 
     int writeOffset = vertexOffsets[cubeIdx];
 
     const int* edges = d_MARCHING_CUBES_LUT[cubeCase];
-    float stepSize = (max - min) / (gridSize - 1);
+    float stepX = (config.maxX - config.minX) / (config.gridX - 1);
+    float stepY = (config.maxY - config.minY) / (config.gridY - 1);
+    float stepZ = (config.maxZ - config.minZ) / (config.gridZ - 1);
 
     int vertexIdx = 0;
     for (int i = 0; i < 16; i++)
@@ -107,11 +110,11 @@ __global__ void MarchingCubesKernel(const float* field, const int* vertexOffsets
         if (edges[i] == -1)
             break;
 
-        const float* edgeVert = d_VERT_TABLE[edges[i]];
+        const float* xyz = d_VERT_TABLE[edges[i]];
 
-        float worldX = min + (x + edgeVert[0]) * stepSize;
-        float worldY = min + (y + edgeVert[1]) * stepSize;
-        float worldZ = min + (z + edgeVert[2]) * stepSize;
+        float worldX = config.minX + (x + xyz[0]) * stepX;
+        float worldY = config.minY + (y + xyz[1]) * stepY;
+        float worldZ = config.minZ + (z + xyz[2]) * stepZ;
 
         int outIdx = (writeOffset + vertexIdx) * 3;
         output[outIdx + 0] = worldX;
@@ -122,12 +125,12 @@ __global__ void MarchingCubesKernel(const float* field, const int* vertexOffsets
     }
 }
 
-std::vector<float> MarchingCubesGPU(const float* field, int gridSize, float min, float max, float isovalue)
+std::vector<float> MarchingCubesGPU(const float* field, const MarchingCubesConfig& config)
 {
     InitGPUSymbols();
 
-    int numCubes = (gridSize - 1) * (gridSize - 1) * (gridSize - 1);
-    int numGridPoints = gridSize * gridSize * gridSize;
+    int numCubes = (config.gridX - 1) * (config.gridY - 1) * (config.gridZ - 1);
+    int numGridPoints = config.gridX * config.gridY * config.gridZ;
 
     float* d_field;
     cudaMalloc(&d_field, numGridPoints * sizeof(float));
@@ -140,7 +143,7 @@ std::vector<float> MarchingCubesGPU(const float* field, int gridSize, float min,
     int threadsPerBlock = 512;
     int numBlocks = (numCubes + threadsPerBlock - 1) / threadsPerBlock;
 
-    CountVerticesKernel<<<numBlocks, threadsPerBlock>>>(d_field, d_vertexCounts, gridSize, isovalue);
+    CountVerticesKernel<<<numBlocks, threadsPerBlock>>>(d_field, d_vertexCounts, config.gridX, config.gridY, config.gridZ, config.isovalue);
 
     int* d_vertexOffsets;
     cudaMalloc(&d_vertexOffsets, numCubes * sizeof(int));
@@ -165,7 +168,7 @@ std::vector<float> MarchingCubesGPU(const float* field, int gridSize, float min,
     float* d_output;
     cudaMalloc(&d_output, totalVertices * 3 * sizeof(float));
 
-    MarchingCubesKernel<<<numBlocks, threadsPerBlock>>>(d_field, d_vertexOffsets, d_output, gridSize, min, max, isovalue);
+    MarchingCubesKernel<<<numBlocks, threadsPerBlock>>>(d_field, d_vertexOffsets, d_output, config);
 
     std::vector<float> h_output(totalVertices * 3);
     cudaMemcpy(h_output.data(), d_output, totalVertices * 3 * sizeof(float), cudaMemcpyDeviceToHost);

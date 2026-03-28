@@ -21,10 +21,13 @@ float torus(float x, float y, float z)
 
 int main()
 {
-    int gridSize = 256;
-    float min = -1.0f;
-    float max = 1.0f;
-    float isovalue = 0.4f;
+    MarchingCubesConfig config = {
+        256, 256, 256,
+        -1.0f, 1.0f,
+        -2.0f, 2.0f,
+        -1.0f, 1.0f,
+        0.15f
+    };
 
     //std::cout << "=== Marching Cubes CPU vs GPU Benchmark ===" << std::endl;
     //std::cout << "Grid size: " << gridSize << "^3" << std::endl;
@@ -34,12 +37,12 @@ int main()
     //std::vector<float> field = GenerateScalarField(gridSize, min, max, sphere);
 
     std::cout << "Reading CT Data..." << std::endl;
-    std::vector<float> field = LoadCTHead("../data");
+    std::vector<float> field = LoadCTHead("../data/CThead");
 
     // CPU
     std::cout << "\n--- CPU Version ---" << std::endl;
     auto cpu_start = std::chrono::high_resolution_clock::now();
-    std::vector<float> cpu_vertices = MarchingCubesCPU(field.data(), gridSize, min, max, isovalue);
+    std::vector<float> cpu_vertices = MarchingCubesCPU(field.data(), config);
     auto cpu_end = std::chrono::high_resolution_clock::now();
 
     double cpu_time_ms = std::chrono::duration<double, std::milli>(cpu_end - cpu_start).count();
@@ -54,7 +57,7 @@ int main()
     // GPU
     std::cout << "\n--- GPU Version ---" << std::endl;
     auto gpu_start = std::chrono::high_resolution_clock::now();
-    std::vector<float> gpu_vertices = MarchingCubesGPU(field.data(), gridSize, min, max, isovalue);
+    std::vector<float> gpu_vertices = MarchingCubesGPU(field.data(), config);
     auto gpu_end = std::chrono::high_resolution_clock::now();
 
     double gpu_time_ms = std::chrono::duration<double, std::milli>(gpu_end - gpu_start).count();

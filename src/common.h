@@ -1,5 +1,16 @@
 #pragma once
 
+struct MarchingCubesConfig
+{
+    int gridX, gridY, gridZ;
+
+    float minX, maxX;
+    float minY, maxY;
+    float minZ, maxZ;
+
+    float isovalue;
+};
+
 constexpr int MARCHING_CUBES_LUT[256][16] =
 {
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
