@@ -26,7 +26,7 @@ int main()
         -1.0f, 1.0f,
         -2.0f, 2.0f,
         -1.0f, 1.0f,
-        0.15f
+        0.4f
     };
 
     //std::cout << "=== Marching Cubes CPU vs GPU Benchmark ===" << std::endl;
@@ -38,6 +38,9 @@ int main()
 
     std::cout << "Reading CT Data..." << std::endl;
     std::vector<float> field = LoadCTHead("../data/CThead");
+
+    //std::cout << "Reading MR Data..." << std::endl;
+    //std::vector<float> field = LoadMRBrain("../data/MRbrain");
 
     // CPU
     std::cout << "\n--- CPU Version ---" << std::endl;

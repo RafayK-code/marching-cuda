@@ -114,3 +114,45 @@ std::vector<float> LoadCTHead(const std::string& directory)
 
     return field;
 }
+
+std::vector<float> LoadMRBrain(const std::string& directory)
+{
+    int width = 256;
+    int height = 256;
+    int depth = 256;
+
+    std::vector<float> field(width * height * depth, 0.0f);
+
+    for (int y = 0; y < 109; y++)
+    {
+        std::string filename = directory + "/MRbrain." + std::to_string(y + 1);
+
+        std::ifstream file(filename, std::ios::binary);
+        if (!file) {
+            std::cerr << "Failed to open " << filename << std::endl;
+            continue;
+        }
+
+        std::vector<uint16_t> slice(width * depth);
+        file.read(reinterpret_cast<char*>(slice.data()), slice.size() * sizeof(uint16_t));
+
+        for (int z = 0; z < depth; z++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                uint16_t value = slice[x + z * width];
+
+                // byte swap from big-endian to little-endian
+                value = ((value & 0xFF) << 8) | ((value >> 8) & 0xFF);
+
+                int flippedY = 112 - y;
+                int idx = x + flippedY * width + z * width * height;
+                field[idx] = value / 4095.0f;
+            }
+        }
+    }
+
+    std::cout << "Loaded MR Brain\n";
+
+    return field;
+}

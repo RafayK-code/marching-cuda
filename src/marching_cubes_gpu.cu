@@ -22,17 +22,14 @@ static void InitGPUSymbols()
 
 __global__ void CountVerticesKernel(const float* field, int* vertexCounts, int gridX, int gridY, int gridZ, float isovalue)
 {
-    int cubeIdx = blockIdx.x * blockDim.x + threadIdx.x;
-    int numCubes = (gridX - 1) * (gridY - 1) * (gridZ - 1);
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int z = blockIdx.z * blockDim.z + threadIdx.z;
 
-    if (cubeIdx >= numCubes)
+    if (x >= gridX - 1 || y >= gridY - 1 || z >= gridZ - 1)
         return;
 
-    int cubesPerSlice = (gridX - 1) * (gridY - 1);
-    int z = cubeIdx / cubesPerSlice;
-    int remainder = cubeIdx % cubesPerSlice;
-    int y = remainder / (gridX - 1);
-    int x = remainder % (gridX - 1);
+    int cubeIdx = x + y * (gridX - 1) + z * (gridX - 1) * (gridY - 1);
 
     float vertValues[8];
     vertValues[0] = field[x + y * gridX + z * gridX * gridY];
@@ -66,20 +63,15 @@ __global__ void CountVerticesKernel(const float* field, int* vertexCounts, int g
 
 __global__ void MarchingCubesKernel(const float* field, const int* vertexOffsets, float* output, MarchingCubesConfig config)
 {
-    int cubeIdx = blockIdx.x * blockDim.x + threadIdx.x;
-    int numCubes = (config.gridX - 1) * (config.gridY - 1) * (config.gridZ - 1);
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int z = blockIdx.z * blockDim.z + threadIdx.z;
 
-    if (cubeIdx >= numCubes)
+    if (x >= config.gridX - 1 || y >= config.gridY - 1 || z >= config.gridZ - 1)
         return;
 
-    // Convert linear index to 3D using gridX, gridY, gridZ
-    int cubesPerSlice = (config.gridX - 1) * (config.gridY - 1);
-    int z = cubeIdx / cubesPerSlice;
-    int remainder = cubeIdx % cubesPerSlice;
-    int y = remainder / (config.gridX - 1);
-    int x = remainder % (config.gridX - 1);
+    int cubeIdx = x + y * (config.gridX - 1) + z * (config.gridX - 1) * (config.gridY - 1);
 
-    // Field indexing using gridX and gridY
     float vertValues[8];
     vertValues[0] = field[x + y * config.gridX + z * config.gridX * config.gridY];
     vertValues[1] = field[(x + 1) + y * config.gridX + z * config.gridX * config.gridY];
@@ -140,10 +132,14 @@ std::vector<float> MarchingCubesGPU(const float* field, const MarchingCubesConfi
     cudaMalloc(&d_vertexCounts, numCubes * sizeof(int));
     cudaMemset(d_vertexCounts, 0, numCubes * sizeof(int));
 
-    int threadsPerBlock = 512;
-    int numBlocks = (numCubes + threadsPerBlock - 1) / threadsPerBlock;
+    dim3 threads(8, 8, 8);
+    dim3 blocks(
+        (config.gridX - 1 + threads.x - 1) / threads.x,
+        (config.gridY - 1 + threads.y - 1) / threads.y,
+        (config.gridZ - 1 + threads.z - 1) / threads.z
+    );
 
-    CountVerticesKernel<<<numBlocks, threadsPerBlock>>>(d_field, d_vertexCounts, config.gridX, config.gridY, config.gridZ, config.isovalue);
+    CountVerticesKernel<<<blocks, threads>>>(d_field, d_vertexCounts, config.gridX, config.gridY, config.gridZ, config.isovalue);
 
     int* d_vertexOffsets;
     cudaMalloc(&d_vertexOffsets, numCubes * sizeof(int));
@@ -151,12 +147,9 @@ std::vector<float> MarchingCubesGPU(const float* field, const MarchingCubesConfi
     void* d_temp_storage = nullptr;
     size_t temp_storage_bytes = 0;
 
-    // doesnt launch kernel
     cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes,
         d_vertexCounts, d_vertexOffsets, numCubes);
-
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
-
     cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes,
         d_vertexCounts, d_vertexOffsets, numCubes);
 
@@ -168,7 +161,7 @@ std::vector<float> MarchingCubesGPU(const float* field, const MarchingCubesConfi
     float* d_output;
     cudaMalloc(&d_output, totalVertices * 3 * sizeof(float));
 
-    MarchingCubesKernel<<<numBlocks, threadsPerBlock>>>(d_field, d_vertexOffsets, d_output, config);
+    MarchingCubesKernel<<<blocks, threads>>>(d_field, d_vertexOffsets, d_output, config);
 
     std::vector<float> h_output(totalVertices * 3);
     cudaMemcpy(h_output.data(), d_output, totalVertices * 3 * sizeof(float), cudaMemcpyDeviceToHost);

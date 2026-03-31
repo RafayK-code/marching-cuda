@@ -9,3 +9,4 @@ void WritePLYFile(const float* vertices, size_t bufferSize, const std::string& f
 std::vector<float> GenerateScalarField(int gridSize, float min, float max, std::function<float(float, float, float)> implicitFunc);
 
 std::vector<float> LoadCTHead(const std::string& directory);
+std::vector<float> LoadMRBrain(const std::string& directory);
