@@ -14,6 +14,10 @@
 #include <cuda_gl_interop.h>
 #include "marching_cubes_gpu.cuh"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 const char* vertexShaderSource = R"(
 #version 450 core
 layout (location = 0) in vec3 aPos;
@@ -76,6 +80,11 @@ bool mousePressed = false;
 // Mouse callback
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+
+    if (ImGui::GetIO().WantCaptureMouse)
+        return;
+
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         mousePressed = (action == GLFW_PRESS);
@@ -89,6 +98,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
+    ImGui_ImplGlfw_CursorPosCallback(window, xpos, ypos);
+
+    if (ImGui::GetIO().WantCaptureMouse)
+        return;
+
     if (!mousePressed)
         return;
 
@@ -116,34 +130,14 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+
+    if (ImGui::GetIO().WantCaptureMouse)
+        return;
+
     cameraDistance -= (float)yoffset * 0.5f;
     if (cameraDistance < 0.5f) cameraDistance = 0.5f;
     if (cameraDistance > 10.0f) cameraDistance = 10.0f;
-}
-
-// Global isovalue that we can change
-float currentIsovalue = 0.4f;
-bool needsRegeneration = false;
-
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (action == GLFW_PRESS || action == GLFW_REPEAT)
-    {
-        if (key == GLFW_KEY_UP)
-        {
-            currentIsovalue += 0.05f;
-            if (currentIsovalue > 1.0f) currentIsovalue = 1.0f;
-            needsRegeneration = true;
-            std::cout << "Isovalue: " << currentIsovalue << std::endl;
-        }
-        else if (key == GLFW_KEY_DOWN)
-        {
-            currentIsovalue -= 0.05f;
-            if (currentIsovalue < 0.0f) currentIsovalue = 0.0f;
-            needsRegeneration = true;
-            std::cout << "Isovalue: " << currentIsovalue << std::endl;
-        }
-    }
 }
 
 int main()
@@ -205,7 +199,6 @@ int main()
     std::cout << "GPU Time: " << gpu_time_ms << " ms" << std::endl;
     std::cout << "Speedup: " << (cpu_time_ms / gpu_time_ms) << "x" << std::endl;
 #endif
-
     // Initialize GLFW
     if (!glfwInit())
     {
@@ -219,14 +212,16 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Create window
-    GLFWwindow* window = glfwCreateWindow(800, 600, "GLFW Triangle", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "GLFW Triangle", nullptr, nullptr);
     if (!window)
     {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
+
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(0);
 
     // Load OpenGL with GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -237,11 +232,26 @@ int main()
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
+    int display_w, display_h;
+    glfwGetFramebufferSize(window, &display_w, &display_h);
+    glViewport(0, 0, display_w, display_h);
+
+    glDisable(GL_SCISSOR_TEST);
+
+    // Initialize ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, false);
+    ImGui_ImplOpenGL3_Init("#version 450");
+
     // Register callbacks
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetScrollCallback(window, scroll_callback);
-    glfwSetKeyCallback(window, key_callback);
 
     // Compile vertex shader
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -290,8 +300,11 @@ int main()
     unsigned int viewLoc = glGetUniformLocation(shaderProgram, "view");
     unsigned int projectionLoc = glGetUniformLocation(shaderProgram, "projection");
 
+    // Global isovalue that we can change
+    float currentIsovalue = 0.4f;
+    bool needsRegeneration = true;
+
     int numVertices = 0;
-    needsRegeneration = true;
 
     cudaGraphicsResource* vboResource;
     cudaGraphicsGLRegisterBuffer(&vboResource, VBO, cudaGraphicsMapFlagsWriteDiscard);
@@ -299,6 +312,25 @@ int main()
     // Render loop
     while (!glfwWindowShouldClose(window))
     {
+        glfwPollEvents();
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);  // Position it
+        ImGui::SetNextWindowSize(ImVec2(400, 160), ImGuiCond_FirstUseEver);  // Make it bigger
+
+        ImGui::Begin("Marching Cubes Controls");
+        if (ImGui::SliderFloat("Isovalue", &currentIsovalue, 0.0f, 1.0f))
+        {
+            needsRegeneration = true;
+        }
+        ImGui::Text("Vertices: %d", numVertices);
+        ImGui::Text("Triangles: %d", numVertices / 3);
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::End();
+
         // Regenerate mesh if isovalue changed
         if (needsRegeneration)
         {
@@ -311,9 +343,7 @@ int main()
             };
 
             numVertices = MarchingCubesGPU_Interop(field.data(), config, vboResource);
-
             needsRegeneration = false;
-            std::cout << "Regenerated: " << numVertices << " vertices" << std::endl;
         }
 
         // Clear
@@ -328,7 +358,7 @@ int main()
         // Create transforms
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1280.0f / 720.0f, 0.05f, 100.0f);
 
         // Send to shader
         glUseProgram(shaderProgram);
@@ -340,11 +370,19 @@ int main()
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, numVertices);
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
-        glfwPollEvents();
     }
 
     // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    cudaGraphicsUnregisterResource(vboResource);
+
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);
