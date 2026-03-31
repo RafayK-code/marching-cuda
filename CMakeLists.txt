@@ -4,17 +4,21 @@ project(MarchingCubes LANGUAGES CXX CUDA)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 
-# CUDA architectures - adjust based on your GPU
 set(CMAKE_CUDA_ARCHITECTURES 86)
 
-# Find CUDA explicitly
 find_package(CUDAToolkit REQUIRED)
 message(STATUS "CUDA found: ${CUDAToolkit_FOUND}")
 message(STATUS "CUDA version: ${CUDAToolkit_VERSION}")
 message(STATUS "CUDA include: ${CUDAToolkit_INCLUDE_DIRS}")
 message(STATUS "CUDA libraries: ${CUDAToolkit_LIBRARY_DIR}")
 
-# All source files in root
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/glfw)
+
+add_subdirectory(external/glad)
+
 add_executable(marching_cubes
     src/main.cpp
     src/marching_cubes_cpu.cpp
@@ -36,8 +40,14 @@ target_compile_options(marching_cubes PRIVATE
     >
 )
 
-# Link CUDA runtime explicitly
-target_link_libraries(marching_cubes PRIVATE  ${CUDA_LIBRARIES})
+target_link_libraries(marching_cubes PRIVATE
+    glfw
+    glad
+    ${CUDA_LIBRARIES}
+)
+
 target_include_directories(marching_cubes PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/glfw/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/glad/include
     ${CUDAToolkit_INCLUDE_DIRS}
 )
