@@ -76,7 +76,7 @@ std::vector<float> GenerateScalarField(int gridSize, float min, float max, std::
 std::vector<float> LoadCTHead(const std::string& directory)
 {
     int width = 256;
-    int height = 256;
+    int height = 113;
     int depth = 256;
 
     std::vector<float> field(width * height * depth, 0.0f);

@@ -15,9 +15,9 @@ message(STATUS "CUDA libraries: ${CUDAToolkit_LIBRARY_DIR}")
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(external/glfw)
+add_subdirectory(extern/glfw)
 
-add_subdirectory(external/glad)
+add_subdirectory(extern/glad)
 
 add_executable(marching_cubes
     src/main.cpp
@@ -49,5 +49,6 @@ target_link_libraries(marching_cubes PRIVATE
 target_include_directories(marching_cubes PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/glfw/include
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/glad/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/glm
     ${CUDAToolkit_INCLUDE_DIRS}
 )
